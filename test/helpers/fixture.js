@@ -1,6 +1,6 @@
 "use strict";
-var fs = require("fs");
-var pathlib = require("path");
+const fs = require("fs");
+const pathlib = require("path");
 
 
 

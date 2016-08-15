@@ -7,7 +7,8 @@ Features:
 * Concurrently checks multiple links
 * Supports various HTML elements/attributes, not just `<a href>`
 * Supports redirects, absolute URLs, relative URLs and `<base>`
-* Honors robot exclusions
+* Honors robot exclusions (robots.txt, headers and `rel`)
+* WHATWG specifications-compliant [HTML](https://html.spec.whatwg.org) and [URL](https://url.spec.whatwg.org) parsing
 * Provides detailed information about each link (HTTP and HTML)
 * URL keyword filtering with wildcards
 * Pause/Resume at any time
@@ -15,9 +16,7 @@ Features:
 
 ## Installation
 
-[Node.js](http://nodejs.org/) `>= 0.10` is required; `< 4.0` will need `Promise` and `Object.assign` polyfills.
-
-There're two ways to use it:
+[Node.js](http://nodejs.org/) `>= 6` is required. There're two ways to use it:
 
 ### Command Line Usage
 To install, type this at the command line:
@@ -59,11 +58,11 @@ Scans an HTML document to find broken links.
 * `.pause()` will pause the internal link queue, but will not pause any active requests.
 * `.resume()` will resume the internal link queue.
 * `.scan(html, baseUrl)` parses & scans a single HTML document. Returns `false` when there is a previously incomplete scan (and `true` otherwise).
-  * `html` can be a stream or a string.
-  * `baseUrl` is the address to which all relative URLs will be made absolute. Without a value, links to relative URLs will output an "Invalid URL" error.
+  * `html` can be a [`Stream`](https://nodejs.org/api/stream.html) or a `String`.
+  * `baseUrl` is an absolute URL `String` or `URL` of the address to which all relative URLs will be made absolute. Without this value, links to relative URLs will most probably output a "BLC_INVALID" error (unless there is an absolute `<base href>`).
 
 ```js
-var htmlChecker = new blc.HtmlChecker(options, {
+const htmlChecker = new blc.HtmlChecker(options, {
 	html: function(tree, robots){},
 	junk: function(result){},
 	link: function(result){},
@@ -87,6 +86,7 @@ Scans the HTML content at each queued URL to find broken links.
 * `.clearCache()` will remove any cached URL responses. This is only relevant if the `cacheResponses` option is enabled.
 * `.dequeue(id)` removes a page from the queue. Returns `true` on success or an `Error` on failure.
 * `.enqueue(pageUrl, customData)` adds a page to the queue. Queue items are auto-dequeued when their requests are complete. Returns a queue ID on success or an `Error` on failure.
+  * `pageUrl` is an absolute URL `String` or `URL`.
   * `customData` is optional data that is stored in the queue item for the page.
 * `.numActiveLinks()` returns the number of links with active requests.
 * `.numPages()` returns the total number of pages in the queue.
@@ -95,7 +95,7 @@ Scans the HTML content at each queued URL to find broken links.
 * `.resume()` will resume the queue.
 
 ```js
-var htmlUrlChecker = new blc.HtmlUrlChecker(options, {
+const htmlUrlChecker = new blc.HtmlUrlChecker(options, {
 	html: function(tree, robots, response, pageUrl, customData){},
 	junk: function(result, customData){},
 	link: function(result, customData){},
@@ -122,6 +122,7 @@ Recursively scans (crawls) the HTML content at each queued URL to find broken li
 * `.clearCache()` will remove any cached URL responses. This is only relevant if the `cacheResponses` option is enabled.
 * `.dequeue(id)` removes a site from the queue. Returns `true` on success or an `Error` on failure.
 * `.enqueue(siteUrl, customData)` adds [the first page of] a site to the queue. Queue items are auto-dequeued when their requests are complete. Returns a queue ID on success or an `Error` on failure.
+  * `siteUrl` is an absolute URL `String` or `URL`.
   * `customData` is optional data that is stored in the queue item for the site.
 * `.numActiveLinks()` returns the number of links with active requests.
 * `.numPages()` returns the total number of pages in the queue.
@@ -133,7 +134,7 @@ Recursively scans (crawls) the HTML content at each queued URL to find broken li
 **Note:** `options.filterLevel` is used for determining which links are recursive.
 
 ```js
-var siteChecker = new blc.SiteChecker(options, {
+const siteChecker = new blc.SiteChecker(options, {
 	robots: function(robots, customData){},
 	html: function(tree, robots, response, pageUrl, customData){},
 	junk: function(result, customData){},
@@ -154,8 +155,8 @@ Requests each queued URL to determine if they are broken.
 
 * `.clearCache()` will remove any cached URL responses. This is only relevant if the `cacheResponses` option is enabled.
 * `.dequeue(id)` removes a URL from the queue. Returns `true` on success or an `Error` on failure.
-* `.enqueue(url, baseUrl, customData)` adds a URL to the queue. Queue items are auto-dequeued when their requests are completed. Returns a queue ID on success or an `Error` on failure.
-  * `baseUrl` is the address to which all relative URLs will be made absolute. Without a value, links to relative URLs will output an "Invalid URL" error.
+* `.enqueue(url, customData)` adds a URL to the queue. Queue items are auto-dequeued when their requests are completed. Returns a queue ID on success or an `Error` on failure.
+  * `url` is an absolute URL `String` or `URL`.
   * `customData` is optional data that is stored in the queue item for the URL.
 * `.numActiveLinks()` returns the number of links with active requests.
 * `.numQueuedLinks()` returns the number of links that currently have no active requests.
@@ -163,19 +164,19 @@ Requests each queued URL to determine if they are broken.
 * `.resume()` will resume the queue.
 
 ```js
-var urlChecker = new blc.UrlChecker(options, {
+const urlChecker = new blc.UrlChecker(options, {
 	link: function(result, customData){},
 	end: function(){}
 });
 
-urlChecker.enqueue(url, baseUrl, customData);
+urlChecker.enqueue(url, customData);
 ```
 
 ## Options
 
 ### `options.acceptedSchemes`
 Type: `Array`  
-Default value: `["http","https"]`  
+Default value: `["http:","https:"]`  
 Will only check links with schemes/protocols mentioned in this list. Any others (except those in `excludedSchemes`) will output an "Invalid URL" error.
 
 ### `options.cacheExpiryTime`
@@ -197,7 +198,7 @@ This option does *not* apply to `UrlChecker`.
 
 ### `options.excludedSchemes`
 Type: `Array`  
-Default value: `["data","geo","javascript","mailto","sms","tel"]`  
+Default value: `["data:","geo:","javascript:","mailto:","sms:","tel:"]`  
 Will not check or output links with schemes/protocols mentioned in this list. This avoids the output of "Invalid URL" errors with links that cannot be checked.
 
 This option does *not* apply to `UrlChecker`.
@@ -228,9 +229,9 @@ Type: `Number`
 Default value: `1`  
 The tags and attributes that are considered links for checking, split into the following levels:
 * `0`: clickable links
-* `1`: clickable links, media, iframes, meta refreshes
-* `2`: clickable links, media, iframes, meta refreshes, stylesheets, scripts, forms
-* `3`: clickable links, media, iframes, meta refreshes, stylesheets, scripts, forms, metadata
+* `1`: clickable links, media, frames, meta refreshes
+* `2`: clickable links, media, frames, meta refreshes, stylesheets, scripts, forms
+* `3`: clickable links, media, frames, meta refreshes, stylesheets, scripts, forms, metadata
 
 Recursive links have a slightly different filter subset. To see the exact breakdown of both, check out the [tag map](https://github.com/stevenvachon/broken-link-checker/blob/master/lib/internal/tags.js). `<base>` is not listed because it is not a link, though it is always parsed.
 
@@ -289,18 +290,18 @@ A broken link will have a `broken` value of `true` and a reason code defined in 
 ```js
 if (result.broken) {
 	console.log(result.brokenReason);
-	//=> HTTP_404
+	//-> HTTP_404
 } else if (result.excluded) {
 	console.log(result.excludedReason);
-	//=> BLC_ROBOTS
+	//-> BLC_ROBOTS
 }
 ```
 
 Additionally, more descriptive messages are available for each reason code:
 ```js
-console.log(blc.BLC_ROBOTS);       //=> Robots Exclusion
-console.log(blc.ERRNO_ECONNRESET); //=> connection reset by peer (ECONNRESET)
-console.log(blc.HTTP_404);         //=> Not Found (404)
+console.log(blc.BLC_ROBOTS);       //-> Robots Exclusion
+console.log(blc.ERRNO_ECONNRESET); //-> connection reset by peer (ECONNRESET)
+console.log(blc.HTTP_404);         //-> Not Found (404)
 
 // List all
 console.log(blc);
@@ -316,23 +317,22 @@ if (result.broken) {
 ```
 
 ## HTML and HTTP information
-Detailed information for each link result is provided. Check out the [schema](https://github.com/stevenvachon/broken-link-checker/blob/master/lib/internal/linkObj.js#L16-L64) or:
+Detailed information for each link result is provided. Check out the [schema](https://github.com/stevenvachon/broken-link-checker/blob/master/lib/internal/Link.js#L11-L55) or:
 ```js
 console.log(result);
 ```
 
 
 ## Roadmap Features
-* fix issue where same-page links are not excluded when cache is enabled, despite `excludeLinksToSamePage===true`
 * publicize filter handlers
 * add cheerio support by using parse5's htmlparser2 tree adaptor?
-* add `rejectUnauthorized:false` option to avoid `UNABLE_TO_VERIFY_LEAF_SIGNATURE`
 * load sitemap.xml at end of each `SiteChecker` site to possibly check pages that were not linked to
 * remove `options.excludedSchemes` and handle schemes not in `options.acceptedSchemes` as junk?
 * change order of checking to: tcp error, 4xx code (broken), 5xx code (undetermined), 200
 * abort download of body when `options.retry405Head===true`
 * option to retry broken links a number of times (default=0)
 * option to scrape `response.body` for erroneous sounding text (using [fathom](https://npmjs.com/fathom-web)?), since an error page could be presented but still have code 200
+* option to detect parked domain
 * option to check broken link on archive.org for archived version (using [this lib](https://npmjs.com/archive.org))
 * option to run `HtmlUrlChecker` checks on page load (using [jsdom](https://npmjs.com/jsdom)) to include links added with JavaScript?
 * option to check if hashes exist in target URL document?
@@ -341,11 +341,17 @@ console.log(result);
 * option to hide unbroken links
 * option to check plain text URLs
 * add throttle profiles (0–9, -1 for "custom") for easy configuring
-* check [ftp:](https://nmjs.com/ftp), [sftp:](https://npmjs.com/ssh2) (for downloadable files)
+* check [ftp:](https://npmjs.com/ftp), [sftp:](https://npmjs.com/ssh2) (for downloadable files)
 * check ~~mailto:~~, news:, nntp:, telnet:?
-* check local files if URL is relative and has no base URL?
+* check that data URLs are valid (with [valid-data-url](https://www.npmjs.com/valid-data-url))?
 * cli json mode -- streamed or not?
 * cli non-tty mode -- change nesting ASCII artwork to time stamps?
+* cli CSV export?
+* `singleSiteCheck().then(results)` for most use cases and CLI (kill on first page if not recursive)
+* use [stream-http](https://www.npmjs.com/stream-http) in place of "http" module for browserify
+* supply CORS error for file:// links on sites with a different protocol
+* create an example with http://astexplorer.net
+* swap [calmcard](https://npmjs.com/calmcard) for both [minimatch](https://npmjs.com/minimatch) and `RegExp`
 
 
 [npm-image]: https://img.shields.io/npm/v/broken-link-checker.svg

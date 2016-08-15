@@ -1,3 +1,12 @@
+* 0.8.0
+  * dropped support for Node v0.10, v0.12 and v4
+  * linkObj renamed to Link, and schema changed
+  * options changed: `acceptedSchemes`, `excludedSchemes`
+  * arguments removed: `baseUrl` from `UrlChecker.prototype.enqueue()`
+  * [WHATWG URL specification](https://url.spec.whatwg.org)-compliance
+  * added missing tags/attributes
+  * test suite improvements
+  * bug fixes
 * 0.7.3 updated tests and dependencies
 * 0.7.2 added `options.retry405Head`
 * 0.7.1 bug fix

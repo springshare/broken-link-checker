@@ -1,13 +1,13 @@
 "use strict";
-var slashes = require("slashes");
+const slashes = require("slashes");
 
-var varStringPattern = /{{([^}]+)}}/;
+const varStringPattern = /{{([^}]+)}}/;
 
 
 
 function a_an(followingWord)
 {
-	var firstChar = followingWord[0].toLowerCase();
+	const firstChar = followingWord[0].toLowerCase();
 	
 	// Skip "y" because it's always special cased
 	if (firstChar==="a" || firstChar==="e" || firstChar==="i" || firstChar==="o" || firstChar==="u")
@@ -31,9 +31,9 @@ function format(input)
 {
 	if (typeof input === "string")
 	{
-		var match = varStringPattern.exec(input);
+		const match = varStringPattern.exec(input);
 		
-		// If {{text}}, which is intended to be outputted literally
+		// If {{text}}, which is intended to be outputted literally (excluding the braces)
 		if (match !== null)
 		{
 			// Code/Variable
@@ -62,10 +62,4 @@ function format(input)
 
 
 
-module.exports = 
-{
-	a_an: a_an,
-	addSlashes: addSlashes,
-	format: format/*,
-	italic: italic*/
-};
+module.exports = { a_an, addSlashes, format/*, italic*/ };

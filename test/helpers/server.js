@@ -1,320 +1,334 @@
 "use strict";
-var fixture = require("./fixture");
+const fixture = require("./fixture");
 
-var http = require("http");
-var st = require("st");
-
-var host = "127.0.0.1";
-var httpServers = {};
-var serveFile = st({ index:"index.html", path:fixture.path() });
+const escapeStringRegexp = require("escape-string-regexp");
+const fs = require("fs");
+const nock = require("nock");
+const specurl = require("specurl");
 
 
 
-function getAvailablePort()
+function addDeadMock(...urls)
 {
-	return new Promise( function(resolve, reject)
+	const error = new Error("mocked ECONNREFUSED");
+	const pattern = pathPattern("/path/to/resource.html");
+	
+	error.code = "ECONNREFUSED";
+	
+	for (let i=0; i<urls.length; i++)
 	{
-		var port;
-		var server = http.createServer();
-		
-		// OS will return availabe port by point to port 0
-		server.listen(0, host, function()
-		{
-			port = server.address().port;
-			server.close();
-			resolve(port);
-		});
-	});
-}
-
-
-
-function getUrl(port, schemeRelative)
-{
-	if (schemeRelative !== true)
-	{
-		return "http://"+host+":"+port;
-	}
-	else
-	{
-		return "//"+host+":"+port;
+		nock(urls[i])
+		.get(pattern).times(Infinity).replyWithError(error)
+		.head(pattern).times(Infinity).replyWithError(error);
 	}
 }
 
 
 
-function startHttpServer(suitePorts)
+function addMock(...urls)
 {
-	return new Promise( function(resolve, reject)
+	for (let i=0; i<urls.length; i++)
 	{
-		var port;
-		var server = http.createServer( function(request, response)
-		{
-			startHttpServer_callback(request, response, port, suitePorts);
-		});
+		let mock = nock(urls[i]);
 		
-		// OS will return available port by pointing to port 0
-		server.listen(0, host, function()
+		intercept(mock, 
 		{
-			port = server.address().port;
-			httpServers[port] = server;
-			resolve(port);
-		});
-	});
-}
-
-
-
-function startHttpServer_callback(request, response, port, suitePorts)
-{
-	switch (request.url)
-	{
-		case "/circular-redirect/redirect.html":
-		{
-			// Redirect
-			response.writeHead(302, { "Location":"/circular-redirect/redirected.html" });
-			response.end();
-			return;
-		}
-		case "/disallowed/header.html":
-		{
-			// Add header
-			response.setHeader("X-Robots-Tag", "nofollow");
-			//response.setHeader("X-Robots-Tag: unavailable_after", "1-Jan-3000 00:00:00 EST");
-			//response.setHeader("X-Robots-Tag", "unavailable_after: 1-Jan-3000 00:00:00 EST");
-			break;
-		}
-		case "/method-not-allowed/any.html":
-		{
-			// Error
-			response.writeHead(405);
-			response.end();
-			return;
-		}
-		case "/method-not-allowed/head.html":
-		{
-			if (request.method.toLowerCase() === "head")
+			path: ["/", "/index.html"],
+			methods: 
 			{
-				// Error
-				response.writeHead(405);
-				response.end();
-				return;
-			}
-			
-			// Serve file
-			break;
-		}
-		case "/external-redirect/redirect.html":
-		{
-			// This fixture requires at least servers
-			if (suitePorts.length < 2)
-			{
-				// Cannot redirect to another server -- make sure test fails
-				response.writeHead(500);
-				response.end();
-				return;
-			}
-			
-			for (var i=1; i<suitePorts.length; i++)
-			{
-				if (suitePorts[i] !== port)
+				all:
 				{
-					// Redirect first test suite port to next port in suite
-					response.writeHead(302, { "Location":"http://"+host+":"+suitePorts[i]+"/external-redirect/redirected.html" });
-					response.end();
-					return;
+					body: stream("/index.html"),
+					headers: { "content-type":"text/html" },
+					statusCode: 200
 				}
 			}
-			
-			// Serve file
-			break;
-		}
-		case "/redirect/redirect.html":
+		});
+		
+		intercept(mock, 
 		{
-			// Redirect
-			response.writeHead(302, { "Location":"/redirect/redirect2.html" });
-			response.end();
-			return;
-		}
-		case "/redirect/redirect2.html":
+			path: "/circular-redirect/redirect.html",
+			methods: 
+			{
+				all:
+				{
+					headers: { location:"/circular-redirect/redirected.html" },
+					statusCode: 302
+				}
+			}
+		});
+		
+		intercept(mock, 
 		{
-			// Redirect
-			response.writeHead(301, { "Location":"/redirect/redirected.html" });
-			response.end();
-			return;
+			path: "/disallowed/header.html",
+			methods: 
+			{
+				all:
+				{
+					body: stream("/disallowed/header.html"),
+					headers:
+					{
+						"content-type": "text/html",
+						"x-robots-tag": "nofollow"/*,
+						"x-robots-tag: unavailable_after": "1-Jan-3000 00:00:00 EST"*/
+					},
+					statusCode: 200
+				}
+			}
+		});
+		
+		intercept(mock, 
+		{
+			path: "/method-not-allowed/any.html",
+			methods: 
+			{
+				all: { statusCode:405 }
+			}
+		});
+		
+		intercept(mock, 
+		{
+			path: "/method-not-allowed/head.html",
+			methods: 
+			{
+				get:
+				{
+					body: stream("/method-not-allowed/head.html"),
+					statusCode: 200
+				},
+				head:
+				{
+					statusCode: 405
+				}
+			}
+		});
+		
+		intercept(mock, 
+		{
+			path: "/non-html/empty",
+			methods: 
+			{
+				all:
+				{
+					body: stream("/non-html/empty"),
+					statusCode: 200
+				}
+			}
+		});
+		
+		intercept(mock, 
+		{
+			path: "/non-html/image.gif",
+			methods: 
+			{
+				all:
+				{
+					body: stream("/non-html/image.gif"),
+					headers: { "content-type":"image/gif" },
+					statusCode: 200
+				}
+			}
+		});
+		
+		intercept(mock, 
+		{
+			path: "/normal/fake.html",
+			methods: 
+			{
+				all: { statusCode:404 }
+			}
+		});
+		
+		intercept(mock, 
+		{
+			path: "/redirect/redirect.html",
+			methods: 
+			{
+				all:
+				{
+					headers: { location:"/redirect/redirect2.html" },
+					statusCode: 302
+				}
+			}
+		});
+		
+		intercept(mock, 
+		{
+			path: "/redirect/redirect2.html",
+			methods: 
+			{
+				all:
+				{
+					headers: { location:"/redirect/redirected.html" },
+					statusCode: 301
+				}
+			}
+		});
+		
+		intercept(mock, 
+		{
+			path: "/robots.txt",
+			methods: 
+			{
+				all:
+				{
+					body: stream("/robots.txt"),
+					headers: { "content-type":"text/plain" },
+					statusCode: 200
+				}
+			}
+		});
+		
+		[
+			"/circular/index.html",
+			"/circular/no-links.html",
+			"/circular/with-links.html",
+			"/circular-redirect/redirected.html",
+			"/disallowed/header2.html",
+			"/disallowed/index.html",
+			"/disallowed/meta.html",
+			"/disallowed/meta2.html",
+			"/disallowed/rel.html",
+			"/disallowed/rel2.html",
+			"/disallowed/robots-txt.html",
+			"/disallowed/robots-txt2.html",
+			"/external-redirect/index.html",
+			"/external-redirect/redirected.html",
+			"/normal/index.html",
+			"/normal/no-links.html",
+			"/normal/with-links.html",
+			"/redirect/index.html",
+			"/redirect/redirected.html"
+		]
+		.forEach(path =>
+		{
+			intercept(mock, 
+			{
+				path: path,
+				methods: 
+				{
+					all:
+					{
+						body: stream(path),
+						headers: { "content-type":"text/html" },
+						statusCode: 200
+					}
+				}
+			});
+		});
+		
+		// These fixtures require multiple mocks
+		if (urls.length >= 2)
+		{
+			if (i === 0)
+			{
+				let redirectedUrl = specurl.parse(urls[1]);
+				redirectedUrl.path = "/external-redirect/redirected.html";
+				
+				// Redirect first mock to next mock
+				// TODO :: make this more explicit in test suite somehow -- special case object for server, created per test?
+				intercept(mock, 
+				{
+					path: "/external-redirect/redirect.html",
+					methods: 
+					{
+						all:
+						{
+							headers: { location:redirectedUrl.href },
+							statusCode: 302
+						}
+					}
+				});
+			}
+		}
+		else
+		{
+			// Cannot redirect to another mock -- make sure test fails
+			intercept(mock, 
+			{
+				path: "/external-redirect/redirect.html",
+				methods: 
+				{
+					all: { statusCode:500 }
+				}
+			});
 		}
 	}
+}
+
+
+
+function intercept(nockInstance, config)
+{
+	if (config.methods.all != null)
+	{
+		config.methods.get  = config.methods.all;
+		config.methods.head = config.methods.all;
+	}
 	
-	serveFile(request, response);
-}
-
-
-
-function startHttpServers(numServers)
-{
-	return new Promise( function(resolve, reject)
+	if (Array.isArray(config.path) === false)
 	{
-		var result = 
-		{
-			ports: [],
-			absoluteUrls: [],
-			schemeRelativeUrls: []
-		};
+		config.path = [config.path];
+	}
+	
+	config.path.forEach(path =>
+	{
+		const pattern = pathPattern(path);
 		
-		/*if (numServers < 1)
+		if (config.methods.get != null)
 		{
-			resolve(result);
-			return;
-		}*/
-		
-		function started(port)
-		{
-			result.ports.push(port);
-			result.absoluteUrls.push( getUrl(port) );
-			result.schemeRelativeUrls.push( getUrl(port,true) );
-			
-			// If more servers to start
-			if (result.ports.length < numServers)
+			nockInstance.get(pattern).times(Infinity).reply((url, requestBody) =>
 			{
-				// Start next one
-				startHttpServer(result.ports).then(started);
-			}
-			else
-			{
-				// All servers started
-				resolve(result);
-			}
+				const body = (typeof config.methods.get.body === "function") ? config.methods.get.body() : null;
+				
+				return [config.methods.get.statusCode, body, config.methods.get.headers];
+			});
 		}
 		
-		// Start first server
-		startHttpServer(result.ports).then(started);
-	});
-}
-
-
-
-function stopHttpServer(port)
-{
-	return new Promise( function(resolve, reject)
-	{
-		httpServers[port].close( function()
+		if (config.methods.head != null)
 		{
-			delete httpServers[port];
-			
-			resolve();
-		});
-	});
-}
-
-
-
-function stopHttpServers(ports)
-{
-	return new Promise( function(resolve, reject)
-	{
-		/*if (ports.length === 0)
-		{
-			resolve();
-			return;
-		}*/
-		
-		function stopped()
-		{
-			if (++count >= ports.length)
+			nockInstance.head(pattern).times(Infinity).reply((url, requestBody) =>
 			{
-				resolve();
-			}
-		}
-		
-		var count = 0;
-		
-		for (var i=0; i<ports.length; i++)
-		{
-			stopHttpServer( ports[i] ).then(stopped);
+				return [config.methods.head.statusCode, null, config.methods.head.headers];
+			});
 		}
 	});
 }
 
 
 
-//::: PUBLIC API
-
-
-
-function startConnection()
+function pathPattern(path)
 {
-	var absoluteUrls,ports,schemeRelativeUrls;
+	path = escapeStringRegexp(path);
 	
-	return startHttpServers(1).then( function(data)
-	{
-		absoluteUrls = data.absoluteUrls;
-		ports = data.ports;
-		schemeRelativeUrls = data.schemeRelativeUrls;
-		
-		return getAvailablePort();
-	})
-	.then( function(port)
-	{
-		return {
-			realPort: ports[0],
-			absoluteUrl: absoluteUrls[0],
-			relativeUrl: schemeRelativeUrls[0],
-			
-			fakePort: port,
-			fakeAbsoluteUrl: getUrl(port),
-			fakeRelativeUrl: getUrl(port,true)
-		};
-	});
-}
-
-
-
-function startConnections()
-{
-	var absoluteUrls,ports,schemeRelativeUrls;
+	path += "(?:\\?(?:.+)?)?";  // adds support for possible queries
+	path += "(?:\\#(?:.+)?)?";  // adds support for possible hashes
 	
-	return startHttpServers(2).then( function(data)
-	{
-		absoluteUrls = data.absoluteUrls;
-		ports = data.ports;
-		schemeRelativeUrls = data.schemeRelativeUrls;
-		
-		return getAvailablePort();
-	})
-	.then( function(port)
-	{
-		return {
-			realPorts: ports,
-			absoluteUrls: absoluteUrls,
-			relativeUrls: schemeRelativeUrls,
-			
-			fakePort: port,
-			fakeAbsoluteUrl: getUrl(port),
-			fakeRelativeUrl: getUrl(port,true)
-		};
-	});
+	return new RegExp("^" + path + "$");
 }
 
 
 
-function stopConnection(port)
+function removeMocks()
 {
-	return stopHttpServer(port);
+	nock.cleanAll();
 }
 
 
 
-function stopConnections(ports)
+function stream(path)
 {
-	return stopHttpServers(ports);
+	return function()
+	{
+		return fs.createReadStream( fixture.path(path) );
+	};
 }
 
 
 
 module.exports = 
 {
-	startConnection:  startConnection,
-	startConnections: startConnections,
-	stopConnection:   stopConnection,
-	stopConnections:  stopConnections
+	start: addMock,
+	startDead: addDeadMock,
+	stop: removeMocks
 };

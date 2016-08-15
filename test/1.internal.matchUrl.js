@@ -1,11 +1,11 @@
 "use strict";
-var matchUrl = require("../lib/internal/matchUrl");
+const matchUrl = require("../lib/internal/matchUrl");
 
-var expect = require("chai").expect;
+const expect = require("chai").expect;
 
 
 
-describe("matchUrl", function()
+describe("INTERNAL -- matchUrl", function()
 {
 	it("works", function()
 	{

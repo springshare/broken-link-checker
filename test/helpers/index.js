@@ -1,15 +1,12 @@
 "use strict";
-var server        = require("./server");
-var testGenerator = require("./testGenerator");
+const server        = require("./server");
+const testGenerator = require("./testGenerator");
 
-var chai = require("chai");
+const chai = require("chai");
 chai.config.includeStack = true;
+chai.use( require("chai-like") );  // TODO :: currently must be before chai-as-promised: https://github.com/zation/chai-like/issues/5
 chai.use( require("chai-as-promised") );
-chai.use( require("chai-like") );
 chai.use( require("chai-things") );
-
-require("es6-promise").polyfill();
-require("object.assign").shim();
 
 
 
@@ -22,10 +19,11 @@ module.exports =
 	
 	options:    require("./options"),
 	
-	startConnection:  server.startConnection,
-	startConnections: server.startConnections,
-	stopConnection:   server.stopConnection,
-	stopConnections:  server.stopConnections,
+	startDeadServer:  server.startDead,
+	startDeadServers: server.startDead,
+	startServer:      server.start,
+	startServers:     server.start,
+	stopServers:      server.stop,
 	
 	tagsString: require("./tagsString"),
 	
