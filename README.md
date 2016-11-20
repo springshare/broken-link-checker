@@ -1,4 +1,4 @@
-# broken-link-checker [![NPM Version][npm-image]][npm-url] [![Build Status][travis-image]][travis-url] [![Dependency Status][david-image]][david-url]
+# broken-link-checker [![NPM Version][npm-image]][npm-url] [![Build Status][travis-image]][travis-url] [![Coverage Status][coveralls-image]][coveralls-url] [![Dependency Status][david-image]][david-url]
 
 > Find broken links, missing images, etc in your HTML.
 
@@ -348,15 +348,18 @@ console.log(result);
 * cli non-tty mode -- change nesting ASCII artwork to time stamps?
 * cli CSV export?
 * `singleSiteCheck().then(results)` for most use cases and CLI (kill on first page if not recursive)
-* use [stream-http](https://www.npmjs.com/stream-http) in place of "http" module for browserify
 * supply CORS error for file:// links on sites with a different protocol
 * create an example with http://astexplorer.net
 * swap [calmcard](https://npmjs.com/calmcard) for both [minimatch](https://npmjs.com/minimatch) and `RegExp`
+* use [debug](https://npmjs.com/debug) for logging -- offer different reporters, like "spec" and "dot"
+* use [axios](https://npmjs.com/axios) ?
 
 
 [npm-image]: https://img.shields.io/npm/v/broken-link-checker.svg
 [npm-url]: https://npmjs.org/package/broken-link-checker
 [travis-image]: https://img.shields.io/travis/stevenvachon/broken-link-checker.svg
 [travis-url]: https://travis-ci.org/stevenvachon/broken-link-checker
+[coveralls-image]: https://img.shields.io/coveralls/stevenvachon/broken-link-checker/v0.8.0.svg
+[coveralls-url]: https://coveralls.io/github/stevenvachon/broken-link-checker
 [david-image]: https://img.shields.io/david/stevenvachon/broken-link-checker.svg
 [david-url]: https://david-dm.org/stevenvachon/broken-link-checker

@@ -4,7 +4,8 @@ const parseHtml  = require("../lib/internal/parseHtml");
 const scrapeHtml = require("../lib/internal/scrapeHtml");
 const tagTests   = require("./helpers/json/scrapeHtml.json");
 
-const expect = require("chai").expect;
+const {describe, it} = require("mocha");
+const {expect} = require("chai");
 
 
 
@@ -35,35 +36,33 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 	
 	describe("link tags & attributes", function()
 	{
-		for (let test in tagTests)
+		Object.keys(tagTests).forEach( function(title)
 		{
-			const data = tagTests[test];
-			const skipOrOnly = data.skipOrOnly==null ? "" : "."+data.skipOrOnly;
-			
-			eval(`
-				it${skipOrOnly}("supports ${helpers.addSlashes(test)}", function()
+			const fixture = tagTests[title];
+			const it_skipOrOnly = fixture.skipOrOnly ? it[fixture.skipOrOnly] : it;
+
+			it_skipOrOnly(`supports ${title}`, function()
+			{
+				return wrapper(fixture.html, "http://domain.com/").then( function(links)
 				{
-					return wrapper("${helpers.addSlashes(data.html)}", "http://domain.com/").then(links =>
-					{
-						expect(links).to.have.length(${data.length});
-						expect(links[0]).to.be.like(${JSON.stringify(data.link, null, "\t")});
-					});
+					expect(links).to.have.length(fixture.length);
+					expect(links[0]).to.containSubset(fixture.link);
 				});
-			`);
-		}
+			});
+		});
 	});
 	
 	
 	
 	describe("edge cases", function()
 	{
-		it('ignores <meta content/> lacking http-equiv="refresh"', function()
+		it(`ignores <meta content/> lacking http-equiv="refresh"`, function()
 		{
-			return wrapper('<meta http-equiv="other" content="5; url=file.html"/>').then(links =>
+			return wrapper(`<meta http-equiv="other" content="5; url=file.html"/>`).then( function(links)
 			{
 				expect(links).to.be.empty;
 				
-				return wrapper('<meta content="5; url=file.html"/>');
+				return wrapper(`<meta content="5; url=file.html"/>`);
 			})
 			.then(links => expect(links).to.be.empty);
 		});
@@ -72,10 +71,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports link attributes with values surrounded by spaces", function()
 		{
-			return wrapper('<a href=" file.html ">link</a>').then(links =>
+			return wrapper(`<a href=" file.html ">link</a>`).then( function(links)
 			{
 				expect(links).to.have.length(1);
-				expect(links[0]).to.be.like(
+				expect(links[0]).to.containSubset(
 				{
 					url: { original:"file.html" },
 					html: { tag:'<a href=" file.html ">' }
@@ -87,10 +86,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports link attributes preceded by non-link attributes", function()
 		{
-			return wrapper('<a id="link" href="file.html">link</a>').then(links =>
+			return wrapper(`<a id="link" href="file.html">link</a>`).then( function(links)
 			{
 				expect(links).to.have.length(1);
-				expect(links[0]).to.be.like(
+				expect(links[0]).to.containSubset(
 				{
 					url: { original:"file.html" },
 					html:
@@ -107,10 +106,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports consecutive link attributes", function()
 		{
-			return wrapper('<img src="file.png" longdesc="file.html"/>').then(links =>
+			return wrapper(`<img src="file.png" longdesc="file.html"/>`).then( function(links)
 			{
 				expect(links).to.have.length(2);
-				expect(links).to.be.like(
+				expect(links).to.containSubset(
 				[
 					{
 						url: { original:"file.png" },
@@ -140,10 +139,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("ignores redundant link attributes", function()
 		{
-			return wrapper('<a href="file.html" href="ignored.html">link</a>').then(links =>
+			return wrapper(`<a href="file.html" href="ignored.html">link</a>`).then( function(links)
 			{
 				expect(links.length).to.equal(1);
-				expect(links[0]).to.be.like(
+				expect(links[0]).to.containSubset(
 				{
 					url: { original:"file.html" },
 					html:
@@ -159,10 +158,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports consecutive link elements", function()
 		{
-			return wrapper('<a href="file1.html">link1</a> <a href="file2.html">link2</a>').then(links =>
+			return wrapper(`<a href="file1.html">link1</a> <a href="file2.html">link2</a>`).then( function(links)
 			{
 				expect(links).to.have.length(2);
-				expect(links).to.be.like(
+				expect(links).to.containSubset(
 				[
 					{
 						url: { original:"file1.html" },
@@ -190,14 +189,14 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports nonconsecutive link elements", function()
 		{
-			let html = '<a href="file1.html">link1</a>';
-			html += 'content <span>content</span> content';
-			html += '<a href="file2.html">link2</a>';
+			let html = `<a href="file1.html">link1</a>`;
+			html += `content <span>content</span> content`;
+			html += `<a href="file2.html">link2</a>`;
 			
-			return wrapper(html).then(links =>
+			return wrapper(html).then( function(links)
 			{
 				expect(links).to.have.length(2);
-				expect(links).to.be.like(
+				expect(links).to.containSubset(
 				[
 					{
 						url: { original:"file1.html" },
@@ -225,10 +224,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports nested link elements", function()
 		{
-			return wrapper('<a href="file1.html"><q cite="file2.html">quote</q></a>').then(links =>
+			return wrapper(`<a href="file1.html"><q cite="file2.html">quote</q></a>`).then( function(links)
 			{
 				expect(links).to.have.length(2);
-				expect(links).to.be.like(
+				expect(links).to.containSubset(
 				[
 					{
 						url: { original:"file1.html" },
@@ -260,10 +259,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports link elements with nested elements", function()
 		{
-			return wrapper('<a href="file.html"><span>text</span></a>').then(links =>
+			return wrapper(`<a href="file.html"><span>text</span></a>`).then( function(links)
 			{
 				expect(links).to.have.length(1);
-				expect(links[0]).to.be.like(
+				expect(links[0]).to.containSubset(
 				{
 					url: { original:"file.html" },
 					html:
@@ -282,10 +281,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports void elements", function()
 		{
-			return wrapper('<img src="file.png"> content').then(links =>
+			return wrapper(`<img src="file.png"> content`).then( function(links)
 			{
 				expect(links).to.have.length(1);
-				expect(links[0]).to.be.like(
+				expect(links[0]).to.containSubset(
 				{
 					url: { original:"file.png" },
 					html:
@@ -304,10 +303,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 
 		it("supports multi-url attribute values", function()
 		{
-			return wrapper('<a ping="file1.html, file2.html"><img srcset="file3.png 2x, file4.png 100w"/></a>').then(links =>
+			return wrapper(`<a ping="file1.html, file2.html"><img srcset="file3.png 2x, file4.png 100w"/></a>`).then( function(links)
 			{
 				expect(links).to.have.length(4);
-				expect(links).to.be.like(
+				expect(links).to.containSubset(
 				[
 					{
 						url: { original:"file1.html" },
@@ -361,18 +360,18 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports detailed selectors and omit nth-child from html and body", function()
 		{
-			let html = '<html><head><title>title</title></head><body>';
-			html += '<div><a href="file1.html">link1</a>';
-			html += '<div><a href="file2.html">link2</a></div>';
-			html += '<div><a href="file3.html">link3</a></div>';
-			html += '<a href="file4.html">link4</a></div>';
-			html += '<a href="file5.html">link5</a>';
-			html += '</body></html>';
+			let html = `<html><head><title>title</title></head><body>`;
+			html += `<div><a href="file1.html">link1</a>`;
+			html += `<div><a href="file2.html">link2</a></div>`;
+			html += `<div><a href="file3.html">link3</a></div>`;
+			html += `<a href="file4.html">link4</a></div>`;
+			html += `<a href="file5.html">link5</a>`;
+			html += `</body></html>`;
 			
-			return wrapper(html).then(links =>
+			return wrapper(html).then( function(links)
 			{
 				expect(links).to.have.length(5);
-				expect(links).to.be.like(
+				expect(links).to.containSubset(
 				[
 					{
 						url: { original:"file1.html" },
@@ -427,12 +426,12 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports link attribute source code locations", function()
 		{
-			const html = '\n\t<a href="file.html">link</a>';
+			const html = `\n\t<a href="file.html">link</a>`;
 			
-			return wrapper(html).then(links =>
+			return wrapper(html).then( function(links)
 			{
 				expect(links).to.have.length(1);
-				expect(links[0]).to.be.like(
+				expect(links[0]).to.containSubset(
 				{
 					html:
 					{
@@ -459,10 +458,10 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports <base/>", function()
 		{
-			return wrapper('<head><base href="/dir/"/></head> <a href="file.html">link</a>').then(links =>
+			return wrapper(`<head><base href="/dir/"/></head> <a href="file.html">link</a>`).then( function(links)
 			{
 				expect(links).to.have.length(1);
-				expect(links[0]).to.be.like(
+				expect(links[0]).to.containSubset(
 				{
 					url: { original:"file.html" },
 					html: { base:"/dir/" }
@@ -474,13 +473,13 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports irregular uses of <base/>", function()
 		{
-			let html = '<base href="/correct/"/>';
-			html += '<a href="file.html">link</a>';
+			let html = `<base href="/correct/"/>`;
+			html += `<a href="file.html">link</a>`;
 			
-			return wrapper(html).then(links =>
+			return wrapper(html).then( function(links)
 			{
 				expect(links).to.have.length(1);
-				expect(links[0]).to.be.like(
+				expect(links[0]).to.containSubset(
 				{
 					url: { original:"file.html" },
 					html: { base:"/correct/" }
@@ -492,16 +491,16 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("ignores multiple uses of <base/>", function()
 		{
-			let html = '<base href="/first/"/>';
-			html += '<head><base href="/ignored1/"/><base href="/ignored2/"/></head>';
-			html += '<head><base href="/ignored3/"/></head>';
-			html += '<base href="/ignored4/"/>';
-			html += '<a href="file.html">link</a>';
+			let html = `<base href="/first/"/>`;
+			html += `<head><base href="/ignored1/"/><base href="/ignored2/"/></head>`;
+			html += `<head><base href="/ignored3/"/></head>`;
+			html += `<base href="/ignored4/"/>`;
+			html += `<a href="file.html">link</a>`;
 			
-			return wrapper(html).then(links =>
+			return wrapper(html).then( function(links)
 			{
 				expect(links).to.have.length(1);
-				expect(links[0]).to.be.like(
+				expect(links[0]).to.containSubset(
 				{
 					url: { original:"file.html" },
 					html: { base:"/first/" }
@@ -513,17 +512,17 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		it("supports invalid html structure", function()
 		{
-			let html = '<html><head><title>title</title></head><body>';
-			html += '<table>';
-			html += '<p><div><a href="file1.html">link<b>1</div></a></b>';
-			html += '<tr><td>content</td></tr></table>';
-			html += '<a href="file2.html">link2</a>';
-			html += '</wtf></body></html>';
+			let html = `<html><head><title>title</title></head><body>`;
+			html += `<table>`;
+			html += `<p><div><a href="file1.html">link<b>1</div></a></b>`;
+			html += `<tr><td>content</td></tr></table>`;
+			html += `<a href="file2.html">link2</a>`;
+			html += `</wtf></body></html>`;
 			
-			return wrapper(html).then(links =>
+			return wrapper(html).then( function(links)
 			{
 				expect(links).to.have.length(2);
-				expect(links).to.be.like(
+				expect(links).to.containSubset(
 				[
 					{
 						url: { original:"file1.html" },
@@ -549,7 +548,7 @@ describe("INTERNAL -- parseHtml / scrapeHtml", function()
 		
 		
 		
-		it("fires \"complete\" when no links found", function()
+		it(`fires "complete" when no links found`, function()
 		{
 			return wrapper("no links here")
 			.then(links => expect(links).to.have.length(0));
