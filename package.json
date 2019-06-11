@@ -42,8 +42,8 @@
     "robot-directives": "~0.3.0",
     "robots-txt-guard": "~0.1.0",
     "robots-txt-parse": "~0.0.4",
-    "urlcache": "~0.6.0",
-    "urlobj": "0.0.10"
+    "urlcache": "~0.7.0",
+    "urlobj": "0.0.11"
   },
   "devDependencies": {
     "chai": "^3.5.0",
